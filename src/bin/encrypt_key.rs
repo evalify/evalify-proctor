@@ -8,6 +8,7 @@ use sha2::Sha256;
 use std::env;
 use std::fs::File;
 use std::io::Write;
+use dotenv::dotenv;
 
 fn derive_aes_key_from_passphrase(passphrase: &str) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(None, passphrase.as_bytes());
@@ -17,6 +18,9 @@ fn derive_aes_key_from_passphrase(passphrase: &str) -> [u8; 32] {
 }
 
 fn main() -> anyhow::Result<()> {
+    // Load environment variables from .env file
+    dotenv().ok();
+    
     let out_path = std::env::args()
         .nth(1)
         .expect("usage: encrypt_key <output-file>");

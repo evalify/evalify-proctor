@@ -107,7 +107,11 @@ async fn launch_chromium() -> Result<()> {
 // ---------------------------------------------------------------
 // MAIN — AUTHENTICATED PROXY
 // ---------------------------------------------------------------
+#[tokio::main]
 async fn main() -> Result<()> {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
+    
     let listen_addr = ([127, 0, 0, 1], 8473);
     let allowed_origin = std::env::var("EVALIFY_URL")
         .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
