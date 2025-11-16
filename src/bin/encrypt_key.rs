@@ -20,9 +20,8 @@ fn main() -> anyhow::Result<()> {
     let out_path = std::env::args().nth(1).expect("usage: encrypt_key <out-file>");
     let pass = env::var("ENCRYPT_PASSPHRASE").expect("set ENCRYPT_PASSPHRASE env var for encryptor");
 
-    // The fixed key you want embedded (HMAC secret). Replace with your value.
-    // Keep length arbitrary; we'll use it as the HMAC secret bytes later.
-    let fixed_key = b"MY-FIXED-HMAC-SECRET-32-BYTES-PLACEHOLDER!!";
+    //this is the fixed as well as HMAC secret which will used for signing kiosk requests
+    let fixed_key = b"2bd00982717eb3c8a2db71f3a453acc478cbf6f482098c514bd8f6ed01d565f0";
 
     let okm = derive_aes_key_from_passphrase(&pass);
     let key = Key::from_slice(&okm);
