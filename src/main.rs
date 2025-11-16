@@ -28,7 +28,7 @@ impl warp::reject::Reject for ProxyRejection {}
 // Chromium launcher
 // ---------------------------------------------------------------
 async fn launch_chromium() -> Result<()> {
-    let url = "https://evalify.amritanet.edu";
+    let url = "http://evalify.amritanet.edu";
 
     let app_flag = format!("--app={}", url);
 
@@ -113,10 +113,10 @@ async fn launch_chromium() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let listen_addr = ([127, 0, 0, 1], 8473);
-    let allowed_origin = "https://evalify.amritanet.edu";
+    let allowed_origin = "http://evalify.amritanet.edu";
 
     let backend_base = std::env::var("BACKEND_BASE_URL")
-        .unwrap_or_else(|_| "https://evalify.amritanet.edu".to_string());
+        .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
 
     let encrypted_blob = ENCRYPTED_B64.trim().to_string();
 
