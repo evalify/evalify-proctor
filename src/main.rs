@@ -14,10 +14,6 @@ use which;
 
 const ENCRYPTED_B64: &str = include_str!("../encrypted_blob.b64");
 
-// Browser → Local proxy authentication key
-const EMBEDDED_LOCAL_AUTH_KEY: &str =
-    "35873c16f62dbf573b8381f6c4243508ce9ade4965b4a268f39a8b4c56e09f5f";
-
 /// Custom rejection
 #[derive(Debug)]
 struct ProxyRejection;
@@ -28,7 +24,8 @@ impl warp::reject::Reject for ProxyRejection {}
 // Chromium launcher
 // ---------------------------------------------------------------
 async fn launch_chromium() -> Result<()> {
-    let url = "http://evalify.amritanet.edu";
+    let url = std::env::var("EVALIFY_URL")
+        .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
 
     let app_flag = format!("--app={}", url);
 
@@ -110,13 +107,16 @@ async fn launch_chromium() -> Result<()> {
 // ---------------------------------------------------------------
 // MAIN — AUTHENTICATED PROXY
 // ---------------------------------------------------------------
-#[tokio::main]
 async fn main() -> Result<()> {
     let listen_addr = ([127, 0, 0, 1], 8473);
-    let allowed_origin = "http://evalify.amritanet.edu";
+    let allowed_origin = std::env::var("EVALIFY_URL")
+        .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
 
     let backend_base = std::env::var("BACKEND_BASE_URL")
         .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
+
+    let local_auth_key = std::env::var("LOCAL_AUTH_KEY")
+        .expect("LOCAL_AUTH_KEY environment variable must be set");
 
     let encrypted_blob = ENCRYPTED_B64.trim().to_string();
 
@@ -128,6 +128,7 @@ async fn main() -> Result<()> {
 
     let allowed_origin_clone = allowed_origin.to_string();
     let backend_base_clone = backend_base.clone();
+    let local_auth_key_clone = local_auth_key.clone();
 
     let proxy_route = warp::path("proxy")
         .and(warp::path::tail())
@@ -155,6 +156,7 @@ async fn main() -> Result<()> {
 
                 let allowed_origin = allowed_origin_clone.clone();
                 let backend_base = backend_base_clone.clone();
+                let local_auth_key = local_auth_key_clone.clone();
 
                 async move {
                     // -------- ORIGIN CHECK --------
@@ -165,7 +167,7 @@ async fn main() -> Result<()> {
 
                     // -------- LOCAL AUTH KEY CHECK --------
                     match x_local_auth {
-                        Some(v) if v == EMBEDDED_LOCAL_AUTH_KEY => {}
+                        Some(v) if v == local_auth_key => {}
                         _ => {
                             let reply = warp::reply::with_status("Unauthorized", StatusCode::UNAUTHORIZED).into_response();
                             return Ok::<_, warp::Rejection>(reply);

@@ -25,10 +25,9 @@ fn main() -> anyhow::Result<()> {
     let pass = env::var("ENCRYPT_PASSPHRASE")
         .expect("set ENCRYPT_PASSPHRASE environment variable");
 
-    // ---- FIXED REAL KIOSK KEY GOES HERE ----
-    let fixed_kiosk_key =
-        b"2bd00982717eb3c8a2db71f3a453acc478cbf6f482098c514bd8f6ed01d565f0";
-    // -----------------------------------------
+    // Read kiosk key from environment
+    let kiosk_key = env::var("KIOSK_KEY")
+        .expect("set KIOSK_KEY environment variable");
 
     // Derive AES-256 key via HKDF
     let okm = derive_aes_key_from_passphrase(&pass);
@@ -41,7 +40,7 @@ fn main() -> anyhow::Result<()> {
 
     // Encrypt kiosk key
     let ciphertext = cipher
-        .encrypt(nonce, fixed_kiosk_key.as_ref())
+        .encrypt(nonce, kiosk_key.as_bytes())
         .expect("encryption failed");
 
     // Prepare blob = nonce + ciphertext
