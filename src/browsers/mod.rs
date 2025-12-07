@@ -72,7 +72,7 @@ pub fn find_windows() -> Result<Browser> {
 
     for (key, path, kind) in registery_checks {
         let key = RegKey::predef(key);
-        if let Ok(path) = key.get_value(path) {
+        if let Ok(path) = key.get_value::<String, _>(path) {
             return Ok(Browser {
                 kind,
                 path: PathBuf::from(path),

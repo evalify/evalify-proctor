@@ -61,7 +61,7 @@ async fn proxy_handler(
 
 pub async fn run(port: u16) {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let client = std::sync::Arc::new(Client::new());
+    let client = Client::new();
 
     let make_svc = make_service_fn(move |_| {
         let client = client.clone();
@@ -69,7 +69,7 @@ pub async fn run(port: u16) {
             Ok::<_, Infallible>(service_fn(move |req| {
                 let client = client.clone();
                 async move {
-                    proxy_handler(req, client)
+                    proxy_handler(req, client).await
                 }
             }))
         }

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use anyhow::Result;
+use anyhow::{Result, Context};
 use tokio::process::Command;
 use tokio::process::Child;
 use super::ProctorPlatform;
-use browsers::Browser;
+use crate::browsers::Browser;
 
 pub struct WindowsPlatform;
 
@@ -21,7 +21,7 @@ impl ProctorPlatform for WindowsPlatform {
     }
 
     async fn launch_kioski(&self, url: &str) ->Result<Child> {
-        let browser = Browser::find().context("Failed to find browser")?;
+        let browser = crate::browsers::find().context("Failed to find browser")?;
         let flags = browser.get_flags(url, "http://127.0.0.1:8080");
 
         let child = Command::new(browser.path)
