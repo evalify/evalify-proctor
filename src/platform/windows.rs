@@ -22,7 +22,7 @@ impl ProctorPlatform for WindowsPlatform {
 
     async fn launch_kioski(&self, url: &str) ->Result<Child> {
         let browser = Browser::find().context("Failed to find browser")?;
-        let flags = browser.get_flags(url, Some("http://127.0.0.1:8080"));
+        let flags = browser.get_flags(url, "http://127.0.0.1:8080");
 
         let child = Command::new(browser.path)
             .args(flags)

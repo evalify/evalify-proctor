@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 use anyhow::{Result, Context};
 
+pub mod chrome;
+pub mod edge;
+
+
 #[derive(Debug,Clone)]
 pub enum BrowserKind {
     Chrome,
@@ -20,9 +24,7 @@ impl Browser {
             BrowserKind::Edge => edge::get_flags(url),
         };
 
-        if let Some(proxy) = proxy_url {
-            flags.push(format!("--proxy-server={}", proxy));
-        }
+        flags.push(format!("--proxy-server={}", proxy_url));
 
         flags
     }
@@ -95,7 +97,10 @@ pub fn find_windows() -> Result<Browser> {
         let expanded = shellexpand::full(path_str).unwrap().to_string();
         let path = PathBuf::from(expanded);
         if path.exists() {
-            return Ok(Browser { kind: kind.clone(), path });
+            return Ok(Browser {
+                kind: kind.clone(),
+                path,
+            });
         }
     }
 
