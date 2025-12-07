@@ -23,3 +23,5 @@ dotenv = "0.15"
 async-trait = "0.1"
 winreg = "0.50"
 shellexpand = "2.1"
+lazy_static = "1.4"
+
