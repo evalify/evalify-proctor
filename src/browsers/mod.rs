@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use anyhow::{Result, Context};
+use anyhow::{Result};
 
 pub mod chrome;
 pub mod edge;

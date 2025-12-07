@@ -1,25 +1,19 @@
 use hyper::{Body, Client, Request, Response, Server, StatusCode, Uri};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::client::HttpConnector;
-use std::net::SocketAddr;
 use std::convert::Infallible;
 
-const ENCRYPTED_B64: &str = include_str!("../encrypted_blob.b64");
+const ENCRYPTED_B64: &str = include_str!("../../encrypted_blob.b64");
 
-static ALLOWED_DOMAINS: &[&str] = &[
-    "evalify.amritanet.edu",
-    "localhost:3000"
-];
-
-fn is_allowed_domain(domain : &Uri) -> bool {
-    let host = match domain.host(){
+fn is_allowed_domain(domain: &Uri) -> bool {
+    let host = match domain.host() {
         Some(host) => host,
         None => return false,
     };
 
     let port = domain.port_u16();
-    for allowed in ALLOWED_DOMAINS{
-        if let Some((a_host,a_port)) = allowed.split_once(":"){
+    for allowed in &crate::config::CONFIG.allowed_domains {
+        if let Some((a_host, a_port)) = allowed.split_once(":") {
             if host == a_host {
                 if let Ok(a_port) = a_port.parse::<u16>(){
                     if port == Some(a_port){
@@ -38,7 +32,6 @@ async fn proxy_handler(
     mut req: Request<Body>,
     client: Client<HttpConnector>,
 ) -> Result<Response<Body>, hyper::Error> {
-
     let uri = req.uri().clone();
 
     if !is_allowed_domain(&uri) {
@@ -48,19 +41,18 @@ async fn proxy_handler(
             .unwrap());
     }
 
-    if is_allowed_domain(&uri){
+    if is_allowed_domain(&uri) {
         req.headers_mut().insert(
             "X-Kioski-Encrypted",
             hyper::header::HeaderValue::from_str(ENCRYPTED_B64.trim())
-                .expect("Invalid ENCRYPTED_B64 header value"),
+                .expect("Invalid header value"),
         );
     }
     let response = client.request(req).await?;
     Ok(response)
 }
 
-pub async fn run(port: u16) {
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+pub async fn run(listener: std::net::TcpListener) {
     let client = Client::new();
 
     let make_svc = make_service_fn(move |_| {
@@ -74,8 +66,12 @@ pub async fn run(port: u16) {
             }))
         }
     });
-    println!("Listening on http://{}", addr);
-    let server = Server::bind(&addr).serve(make_svc).await;
+
+    let server = Server::from_tcp(listener)
+        .expect("Failed to create server from listener")
+        .serve(make_svc)
+        .await;
+
     if let Err(e) = server {
         eprintln!("Server error: {}", e);
     }

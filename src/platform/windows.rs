@@ -3,7 +3,6 @@ use anyhow::{Result, Context};
 use tokio::process::Command;
 use tokio::process::Child;
 use super::ProctorPlatform;
-use crate::browsers::Browser;
 
 pub struct WindowsPlatform;
 
@@ -22,7 +21,8 @@ impl ProctorPlatform for WindowsPlatform {
 
     async fn launch_kioski(&self, url: &str) ->Result<Child> {
         let browser = crate::browsers::find().context("Failed to find browser")?;
-        let flags = browser.get_flags(url, "http://127.0.0.1:8080");
+        let proxy_url = format!("http://127.0.0.1:{}", crate::config::CONFIG.proxy_port);
+        let flags = browser.get_flags(url, &proxy_url);
 
         let child = Command::new(browser.path)
             .args(flags)
