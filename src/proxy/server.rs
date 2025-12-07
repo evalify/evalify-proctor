@@ -34,6 +34,7 @@ async fn proxy_handler(
 ) -> Result<Response<Body>, hyper::Error> {
     let uri = req.uri().clone();
 
+
     if !is_allowed_domain(&uri) {
         return Ok(Response::builder()
             .status(StatusCode::FORBIDDEN)

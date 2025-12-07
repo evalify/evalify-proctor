@@ -12,7 +12,7 @@ lazy_static! {
         dotenv::dotenv().ok();
 
         let target_url = env::var("TARGET_URL")
-            .unwrap_or_else(|_| "https://evalify.amritanet.edu".to_string());
+            .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
         
         let proxy_port = env::var("PROXY_PORT")
             .ok()
@@ -20,7 +20,7 @@ lazy_static! {
             .unwrap_or(8080);
             
         let allowed_domains_str = env::var("ALLOWED_DOMAINS")
-            .unwrap_or_else(|_| "evalify.amritanet.edu".to_string());
+            .unwrap_or_else(|_| "evalify.amritanet.edu,localhost:3000".to_string());
             
         let allowed_domains = allowed_domains_str
             .split(',')
