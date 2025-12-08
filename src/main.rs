@@ -26,8 +26,8 @@ async fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
     let platform = WindowsPlatform::new();
 
-    #[cfg(not(target_os = "windows"))]
-    anyhow::bail!("Unsupported OS");
+    #[cfg(target_os = "linux")]
+    let platform = LinuxPlatform::new();
 
     println!("Platform Initialized: Windows");
     platform.setup().await?;

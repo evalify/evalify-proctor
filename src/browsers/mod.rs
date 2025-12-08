@@ -33,7 +33,41 @@ impl Browser {
 pub fn find() -> Result<Browser> {
     #[cfg(target_os = "windows")]
     return find_windows();
+
+    #[cfg(target_os = "linux")]
+    return find_linux();
 }
+
+#[cfg(target_os = "linux")]
+pub fn find_linux() -> Result<Browser> {
+    use which::which;
+    let candidates = [
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+    "microsoft-edge",
+    "microsoft-edge-stable",
+    ];
+
+    for candidate in candidates {
+        if let Ok(path) = which(candidate) {
+            let kind = if candidate.contains("edge") {
+                BrowserKind::Edge
+            } else if candidate.contains("chromium") {
+                BrowserKind::Chromium
+            } else {
+                BrowserKind::Chrome
+            };
+            return Ok(Browser {
+                kind,
+                path,
+            });
+        }
+    }
+    Err(anyhow::anyhow!("Browser not found"))
+}
+
 
 #[cfg(target_os = "windows")]
 pub fn find_windows() -> Result<Browser> {
