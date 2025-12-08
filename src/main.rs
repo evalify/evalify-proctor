@@ -3,7 +3,7 @@ mod browsers;
 mod proxy;
 
 use anyhow::{Result, Context};
-use platform::{ProctorPlatform, windows::WindowsPlatform};
+use platform::{ProctorPlatform, windows::WindowsPlatform, linux::LinuxPlatform};
 
 mod config;
 
@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     #[cfg(target_os = "linux")]
     let platform = LinuxPlatform::new();
 
-    println!("Platform Initialized: Windows");
+    println!("Platform Initialized");
     platform.setup().await?;
 
     println!("Launching Kiosk Browser: {}", target_url);
