@@ -36,7 +36,11 @@ pub fn find() -> Result<Browser> {
 
     #[cfg(target_os = "linux")]
     return find_linux();
+
+    #[cfg(target_os = "macos")]
+    return find_macos();
 }
+
 
 #[cfg(target_os = "linux")]
 pub fn find_linux() -> Result<Browser> {
@@ -63,6 +67,34 @@ pub fn find_linux() -> Result<Browser> {
                 kind,
                 path,
             });
+        }
+    }
+    Err(anyhow::anyhow!("Browser not found"))
+}
+
+
+#[cfg(target_os = "macos")]
+pub fn find_macos() -> Result<Browser> {
+    use std::path::PathBuf;
+
+    let candidates = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    ];
+
+    for path_str in candidates {
+        let path = PathBuf::from(path_str);
+        if path.exists() {
+             let kind = if path_str.contains("Chromium") {
+                BrowserKind::Edge
+            } else if path_str.contains("Chromium") {
+                BrowserKind::Chromium
+            } else {
+                BrowserKind::Chrome
+            };
+            
+            return Ok(Browser { kind, path });
         }
     }
     Err(anyhow::anyhow!("Browser not found"))

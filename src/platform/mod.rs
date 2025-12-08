@@ -4,6 +4,7 @@ use tokio::process::Child;
 
 pub mod windows;
 pub mod linux;
+pub mod mac;
 
 
 #[async_trait]

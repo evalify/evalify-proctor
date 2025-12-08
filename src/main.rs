@@ -3,7 +3,16 @@ mod browsers;
 mod proxy;
 
 use anyhow::{Result, Context};
-use platform::{ProctorPlatform, windows::WindowsPlatform, linux::LinuxPlatform};
+use platform::ProctorPlatform;
+
+#[cfg(target_os = "windows")]
+use platform::windows::WindowsPlatform;
+
+#[cfg(target_os = "linux")]
+use platform::linux::LinuxPlatform;
+
+#[cfg(target_os = "macos")]
+use platform::mac::MacPlatform;
 
 mod config;
 
@@ -28,6 +37,9 @@ async fn main() -> Result<()> {
 
     #[cfg(target_os = "linux")]
     let platform = LinuxPlatform::new();
+
+    #[cfg(target_os = "macos")]
+    let platform = MacPlatform::new();
 
     println!("Platform Initialized");
     platform.setup().await?;
