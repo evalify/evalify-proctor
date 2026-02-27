@@ -2,6 +2,8 @@ use hyper::{Body, Client, Request, Response, Server, StatusCode, Uri};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::client::HttpConnector;
 use std::convert::Infallible;
+use std::sync::Arc;
+use tokio::sync::Notify;
 
 const ENCRYPTED_B64: &str = include_str!("../../encrypted_blob.b64");
 
@@ -15,8 +17,8 @@ fn is_allowed_domain(domain: &Uri) -> bool {
     for allowed in &crate::config::CONFIG.allowed_domains {
         if let Some((a_host, a_port)) = allowed.split_once(":") {
             if host == a_host {
-                if let Ok(a_port) = a_port.parse::<u16>(){
-                    if port == Some(a_port){
+                if let Ok(a_port) = a_port.parse::<u16>() {
+                    if port == Some(a_port) {
                         return true;
                     }
                 }
@@ -28,12 +30,20 @@ fn is_allowed_domain(domain: &Uri) -> bool {
     false
 }
 
+fn is_logout_path(uri: &Uri) -> bool {
+    let path = uri.path();
+    crate::config::CONFIG
+        .logout_paths
+        .iter()
+        .any(|p| path == p.as_str())
+}
+
 async fn proxy_handler(
     mut req: Request<Body>,
     client: Client<HttpConnector>,
+    logout_signal: Arc<Notify>,
 ) -> Result<Response<Body>, hyper::Error> {
     let uri = req.uri().clone();
-
 
     if !is_allowed_domain(&uri) {
         return Ok(Response::builder()
@@ -42,27 +52,40 @@ async fn proxy_handler(
             .unwrap());
     }
 
-    if is_allowed_domain(&uri) {
-        req.headers_mut().insert(
-            "X-Kioski-Encrypted",
-            hyper::header::HeaderValue::from_str(ENCRYPTED_B64.trim())
-                .expect("Invalid header value"),
-        );
-    }
+    let logout = is_logout_path(&uri);
+
+    req.headers_mut().insert(
+        "X-Kioski-Encrypted",
+        hyper::header::HeaderValue::from_str(ENCRYPTED_B64.trim())
+            .expect("Invalid header value"),
+    );
+
     let response = client.request(req).await?;
+
+    if logout {
+        logout_signal.notify_waiters();
+    }
+
     Ok(response)
 }
 
-pub async fn run(listener: std::net::TcpListener) {
+pub async fn run(
+    listener: std::net::TcpListener,
+    logout_signal: Arc<Notify>,
+    proxy_shutdown: Arc<Notify>,
+) {
     let client = Client::new();
+    let logout_svc = logout_signal.clone();
 
     let make_svc = make_service_fn(move |_| {
         let client = client.clone();
+        let logout_signal = logout_svc.clone();
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
                 let client = client.clone();
+                let logout_signal = logout_signal.clone();
                 async move {
-                    proxy_handler(req, client).await
+                    proxy_handler(req, client, logout_signal).await
                 }
             }))
         }
@@ -71,9 +94,9 @@ pub async fn run(listener: std::net::TcpListener) {
     let server = Server::from_tcp(listener)
         .expect("Failed to create server from listener")
         .serve(make_svc)
-        .await;
+        .with_graceful_shutdown(proxy_shutdown.notified());
 
-    if let Err(e) = server {
+    if let Err(e) = server.await {
         eprintln!("Server error: {}", e);
     }
 }

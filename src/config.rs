@@ -5,6 +5,7 @@ pub struct AppConfig {
     pub target_url: String,
     pub proxy_port: u16,
     pub allowed_domains: Vec<String>,
+    pub logout_paths: Vec<String>,
 }
 
 lazy_static! {
@@ -13,24 +14,34 @@ lazy_static! {
 
         let target_url = env::var("TARGET_URL")
             .unwrap_or_else(|_| "http://evalify.amritanet.edu".to_string());
-        
+
         let proxy_port = env::var("PROXY_PORT")
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(8080);
-            
+
         let allowed_domains_str = env::var("ALLOWED_DOMAINS")
             .unwrap_or_else(|_| "evalify.amritanet.edu,localhost:3000".to_string());
-            
+
         let allowed_domains = allowed_domains_str
             .split(',')
             .map(|s| s.trim().to_string())
+            .collect();
+
+        let logout_paths_str = env::var("LOGOUT_PATHS")
+            .unwrap_or_else(|_| "/api/auth/logout".to_string());
+
+        let logout_paths = logout_paths_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
             .collect();
 
         AppConfig {
             target_url,
             proxy_port,
             allowed_domains,
+            logout_paths,
         }
     };
 }
