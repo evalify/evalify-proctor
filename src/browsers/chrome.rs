@@ -3,6 +3,10 @@ pub fn get_flags(url: &str) -> Vec<String> {
         // Launch target
         url.to_string(),
 
+        // Kiosk / fullscreen
+        "--kiosk".to_string(),
+        "--fullscreen".to_string(),
+
         // Basic window / profile behaviour
         "--new-window".to_string(),
         "--no-first-run".to_string(),
@@ -30,7 +34,7 @@ pub fn get_flags(url: &str) -> Vec<String> {
         // Remote debugging — 0 = random port, doesn’t disable DevTools,
         "--remote-debugging-port=0".to_string(),
 
-        // Feature toggles: keep only ones that are likely to be stable
+        // Feature toggles
         "--disable-features=Translate,TranslateUI,PrintPreview,Pay,AutofillServerCommunication".to_string(),
     ]
 }
