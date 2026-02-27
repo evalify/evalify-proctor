@@ -87,9 +87,9 @@ pub fn find_macos() -> Result<Browser> {
         let path = PathBuf::from(path_str);
         if path.exists() {
              let kind = if path_str.contains("Chromium") {
-                BrowserKind::Edge
-            } else if path_str.contains("Chromium") {
                 BrowserKind::Chromium
+            } else if path_str.contains("Edge") {
+                BrowserKind::Edge
             } else {
                 BrowserKind::Chrome
             };
@@ -136,13 +136,15 @@ pub fn find_windows() -> Result<Browser> {
         (HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe", BrowserKind::Edge),
     ];
 
-    for (key, path, kind) in registery_checks {
-        let key = RegKey::predef(key);
-        if let Ok(path) = key.get_value::<String, _>(path) {
-            return Ok(Browser {
-                kind,
-                path: PathBuf::from(path),
-            });
+    for (root, subkey_path, kind) in registery_checks {
+        let root = RegKey::predef(root);
+        if let Ok(subkey) = root.open_subkey(subkey_path) {
+            if let Ok(exe_path) = subkey.get_value::<String, _>("") {
+                return Ok(Browser {
+                    kind,
+                    path: PathBuf::from(exe_path),
+                });
+            }
         }
     }
 

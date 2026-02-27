@@ -1,21 +1,32 @@
+mod hooks;
+mod policy;
+
 use async_trait::async_trait;
 use anyhow::{Result, Context};
-use tokio::process::Command;
-use tokio::process::Child;
+use tokio::process::{Command, Child};
 use super::ProctorPlatform;
 
+use hooks::HookManager;
 
-pub struct LinuxPlatform;
+pub struct LinuxPlatform {
+    hook_manager: HookManager,
+}
 
 impl LinuxPlatform {
     pub fn new() -> Self {
-        Self
+        Self {
+            hook_manager: HookManager::new(),
+        }
     }
 }
 
 #[async_trait]
 impl ProctorPlatform for LinuxPlatform {
     async fn setup(&self) -> Result<()> {
+        policy::disable_devtools().context("Failed to disable devtools")?;
+        println!("Disabled devtools");
+        self.hook_manager.install().context("Failed to install hooks")?;
+        println!("Installed input hooks");
         Ok(())
     }
 
@@ -33,6 +44,10 @@ impl ProctorPlatform for LinuxPlatform {
     }
 
     async fn teardown(&self) -> Result<()> {
+        self.hook_manager.uninstall().context("Failed to uninstall hooks")?;
+        println!("Uninstalled input hooks");
+        policy::enable_devtools().context("Failed to re-enable devtools")?;
+        println!("Re-enabled devtools");
         Ok(())
     }
 }

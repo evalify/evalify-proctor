@@ -1,5 +1,5 @@
 mod hooks;
-mod registry;
+mod devtools_policy;
 
 use async_trait::async_trait;
 use anyhow::{Result, Context};
@@ -23,7 +23,7 @@ impl WindowsPlatform{
 #[async_trait]
 impl ProctorPlatform for WindowsPlatform {
     async fn setup(&self) -> Result<()> {
-        registry::disable_devtools().context("Failed to disable devtools")?;
+        devtools_policy::disable_devtools().context("Failed to disable devtools")?;
         println!("Disabled devtools");
         self.hook_manager.install().context("Failed to install hooks")?;
         println!("Installed input hooks");
@@ -46,7 +46,7 @@ impl ProctorPlatform for WindowsPlatform {
     async fn teardown(&self) -> Result<()> {
         self.hook_manager.uninstall().context("Failed to uninstall hooks")?;
         println!("Uninstalled input hooks");
-        registry::enable_devtools().context("Failed to re-enable devtools")?;
+        devtools_policy::enable_devtools().context("Failed to re-enable devtools")?;
         println!("Re-enabled devtools");
         Ok(())
     }
