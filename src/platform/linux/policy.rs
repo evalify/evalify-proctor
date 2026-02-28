@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::fs;
 use std::path::Path;
 
@@ -11,7 +11,15 @@ const POLICY_DIRS: &[&str] = &[
     "/etc/opt/edge/policies/managed",
 ];
 
+fn check_root() -> Result<()> {
+    if unsafe {     libc::geteuid() } != 0 {
+        bail!("Must run as root to write browser policies to /etc (try: sudo)");
+    }
+    Ok(())
+}
+
 pub fn disable_devtools() -> Result<()> {
+    check_root()?;
     for dir in POLICY_DIRS {
         let path = Path::new(dir);
         fs::create_dir_all(path)?;
