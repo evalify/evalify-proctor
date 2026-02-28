@@ -1,167 +1,156 @@
-# Evalify Kiosk
+# Evalify Proctor
 
-A secure kiosk application that launches Chromium in kiosk mode and provides an authenticated proxy for the Evalify platform.
+A secure kiosk-mode proctoring application for the Evalify platform. Launches a Chromium-based browser in locked-down fullscreen, blocks unsafe shortcuts, disables DevTools, and routes all traffic through an authenticated local proxy.
 
-## Overview
+## Supported platforms
 
-This application consists of two main components:
-1. **Main Kiosk Application** (`evalify-kiosk`) - Launches Chromium in kiosk mode and runs an authenticated proxy server
-2. **Key Encryption Utility** (`encrypt_key`) - Encrypts sensitive keys using AES-256-GCM encryption
+| Platform | Desktop / Session | Status |
+|----------|-------------------|--------|
+| Windows  | Any               | Supported (requires Administrator) |
+| Linux    | LXQt + X11        | Supported (requires root) |
+| macOS    | —                 | Partial (browser launch only) |
 
 ## Prerequisites
 
-- Rust (latest stable version)
-- Chromium or Google Chrome browser
-- Linux environment (tested on Linux systems)
+- **Rust** stable toolchain (1.70+)
+- **Chromium**, **Google Chrome**, or **Microsoft Edge**
 
-## Setup
+### Linux-specific
 
-### 1. Environment Configuration
+- LXQt desktop with Openbox window manager
+- X11 session (`XDG_SESSION_TYPE=x11`)
+- `xmodmap` installed (usually part of `x11-xserver-utils`)
 
-Copy the example environment file and configure your settings:
+### Windows-specific
+
+- Run as **Administrator** (needed to write registry policies)
+
+## Quick start
 
 ```bash
+# 1. Clone and enter the repo
+git clone https://github.com/evalify/evalify-proctor.git
+cd evalify-proctor
+
+# 2. Create your .env from the example
 cp env.example .env
-```
+# Then edit .env with your values
 
-Edit the `.env` file with your configuration:
-
-```env
-ENCRYPT_PASSPHRASE="your-encryption-passphrase-here"
-BACKEND_BASE_URL="http://evalify.amritanet.edu"
-EVALIFY_URL="http://evalify.amritanet.edu"
-LOCAL_AUTH_KEY="your-local-auth-key-here"
-KIOSK_KEY="your-kiosk-key-here"
-```
-
-### 2. Build Release Binaries
-
-Build optimized release binaries:
-
-```bash
+# 3. Build
 cargo build --release
-```
 
-This will create the following binaries in `target/release/`:
-- `evalify-kiosk` - Main kiosk application
-- `encrypt_key` - Key encryption utility
-
-## Running the Application
-
-### Step 1: Generate Encrypted Key (Optional)
-
-If you need to generate a new encrypted key blob:
-
-```bash
+# 4. Generate the encrypted key blob (one-time)
 ./target/release/encrypt_key encrypted_blob.b64
+
+# 5. Run
+# Linux  — needs root for /etc policy writes
+sudo -E ./target/release/evalify-kiosk
+
+# Windows — run an elevated terminal, then:
+.\target\release\evalify-kiosk.exe
 ```
 
-This will create/update the `encrypted_blob.b64` file with your encrypted kiosk key.
+## Configuration
 
-### Step 2: Run the Kiosk Application
+All settings are read from environment variables (or a `.env` file in the project root).
 
-#### Option A: Run directly from release binary
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TARGET_URL` | URL loaded in the kiosk browser | `http://evalify.amritanet.edu` |
+| `PROXY_PORT` | Local proxy listen port | `8080` |
+| `ALLOWED_DOMAINS` | Comma-separated domains the proxy will forward to | `evalify.amritanet.edu,localhost:3000` |
+| `LOGOUT_PATHS` | Comma-separated URI paths that trigger auto-shutdown | `/api/auth/logout` |
+| `ENCRYPT_PASSPHRASE` | Passphrase for AES-256-GCM key derivation (used by `encrypt_key`) | — |
+| `KIOSK_KEY` | Raw kiosk identification key (encrypted by `encrypt_key`) | — |
+
+## What it does
+
+### 1. Proxy server
+
+A local HTTP proxy starts on `127.0.0.1:<PROXY_PORT>`. The browser is configured to route all traffic through it. The proxy:
+
+- **Blocks** requests to domains not in `ALLOWED_DOMAINS`.
+- **Injects** an encrypted kiosk identity header (`X-Kioski-Encrypted`) into every forwarded request.
+- **Detects logout** — when a request matches a `LOGOUT_PATHS` entry, the app shuts down gracefully.
+
+### 2. Browser lockdown
+
+The browser launches in kiosk/fullscreen mode with flags that disable extensions, incognito/private mode, DevTools, PDF viewer, print, translate, sync, and other escape routes.
+
+### 3. DevTools policy
+
+DevTools are disabled via OS-level browser policy so they cannot be re-enabled from within the browser.
+
+| Platform | Mechanism |
+|----------|-----------|
+| Windows  | Registry keys under `HKLM\SOFTWARE\Policies\{Google\Chrome, Microsoft\Edge}` |
+| Linux    | JSON policy files in `/etc/opt/chrome/`, `/etc/chromium/`, `/etc/opt/edge/` |
+
+Policies are removed on teardown.
+
+### 4. Input hooks
+
+Dangerous keyboard shortcuts and right-click are intercepted at the OS level.
+
+**Blocked shortcuts (both platforms):**
+
+| Shortcut | Reason |
+|----------|--------|
+| Ctrl+T | New tab |
+| Ctrl+W | Close tab |
+| Ctrl+N | New window |
+| Ctrl+Shift+T | Reopen closed tab |
+| Ctrl+Shift+N | Incognito / private window |
+| Ctrl+L | Focus address bar |
+| Ctrl+Shift+I | DevTools |
+| Ctrl+Shift+J | DevTools console |
+| F11 | Toggle fullscreen |
+| F12 | DevTools |
+| Print Screen | Screenshot |
+| Right-click | Context menu |
+
+**Windows-only additional blocks:**
+
+| Shortcut | Reason |
+|----------|--------|
+| Alt+Tab | Window switcher |
+| Alt+Esc | Window cycle |
+| Win+V | Clipboard history |
+
+**Linux-only additional blocks:**
+
+| Shortcut | Reason |
+|----------|--------|
+| Alt+Tab / Alt+Shift+Tab | Window switcher (Openbox) |
+| Super key | LXQt launcher |
+| Print key (X11 keycode) | Screenshot at X11 level |
+| LXQt screenshot shortcuts | Disabled in `globalkeyshortcuts.conf` |
+
+All hooks are uninstalled and original settings restored on shutdown.
+
+
+### Key encryption utility
 
 ```bash
-./target/release/evalify-kiosk
-```
-
-#### Option B: Run with custom environment variables
-
-```bash
-EVALIFY_URL="https://your-custom-url.com" \
-BACKEND_BASE_URL="https://your-backend.com" \
-LOCAL_AUTH_KEY="your-auth-key" \
-./target/release/evalify-kiosk
-```
-
-### Step 3: Access the Application
-
-Once running, the application will:
-
-1. **Launch Chromium** in kiosk mode pointing to the configured Evalify URL
-2. **Start a proxy server** on `http://127.0.0.1:8473`
-
-The Chromium browser will open automatically in fullscreen kiosk mode.
-
-## Application Features
-
-### Kiosk Mode Configuration
-
-The application launches Chromium with extensive security and kiosk-specific flags:
-- Full-screen kiosk mode
-- Disabled extensions, plugins, and external access
-- Incognito mode for session isolation
-- Disabled user interactions (printing, saving, etc.)
-- Enhanced security settings
-
-### Authenticated Proxy
-
-- **Local Authentication**: Requires `X-Local-Auth` header matching your configured key
-- **Origin Validation**: Only accepts requests from the configured Evalify URL
-- **Encrypted Headers**: Adds encrypted kiosk identification to backend requests
-- **Request Forwarding**: Transparently forwards authenticated requests to the backend
-
-## Development
-
-### Build for Development
-
-```bash
-cargo build
-```
-
-### Run in Development Mode
-
-```bash
-# Run main application
-cargo run
-
-# Run key encryption utility
 cargo run --bin encrypt_key -- encrypted_blob.b64
 ```
 
-### Environment Variables
-
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `ENCRYPT_PASSPHRASE` | Passphrase for AES encryption | Yes | - |
-| `BACKEND_BASE_URL` | Backend API base URL | No | `http://evalify.amritanet.edu` |
-| `EVALIFY_URL` | Frontend application URL | No | `http://evalify.amritanet.edu` |
-| `LOCAL_AUTH_KEY` | Authentication key for proxy requests | Yes | - |
-| `KIOSK_KEY` | Kiosk identification key | Yes | - |
-
-## Security Notes
-
-- Keep your `.env` file secure and never commit it to version control
-- The `LOCAL_AUTH_KEY` should be a secure, randomly generated string
-- The `KIOSK_KEY` is encrypted before transmission to the backend
-- All proxy requests require proper origin and authentication headers
+Reads `ENCRYPT_PASSPHRASE` and `KIOSK_KEY` from the environment, encrypts the key with AES-256-GCM (HKDF-derived key), and writes the base64 blob to the specified file. This blob is embedded into the binary at compile time via `include_str!`.
 
 ## Troubleshooting
 
-### Common Issues
+**"Must run as root"** (Linux) / **Registry access denied** (Windows)
+The app needs elevated privileges to write browser DevTools policies. Run with `sudo -E` on Linux or an Administrator terminal on Windows.
 
-1. **Environment variables not found**: Ensure your `.env` file is in the project root and properly formatted
+**"Only X11 sessions are supported"**
+The Linux input hooks use `xmodmap`, which requires X11. Make sure your session type is X11 (`echo $XDG_SESSION_TYPE`). Wayland is not supported.
 
-2. **Chromium not found**: Install Chromium or Google Chrome:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt install chromium-browser
-   
-   # Or Google Chrome
-   wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-   sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-   sudo apt update && sudo apt install google-chrome-stable
-   ```
+**"Browser not found"**
+Install Chrome, Chromium, or Edge. On Linux the binary must be on `$PATH` (e.g. `google-chrome-stable`, `chromium-browser`, `microsoft-edge-stable`).
 
-3. **Permission issues**: Ensure the binary has execute permissions:
-   ```bash
-   chmod +x target/release/evalify-kiosk
-   chmod +x target/release/encrypt_key
-   ```
-
-4. **Port conflicts**: The proxy runs on port 8473. Ensure this port is available.
+**Port conflict on startup**
+Change `PROXY_PORT` in `.env` to an available port.
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+Apache License 2.0 — see [LICENSE](LICENSE).
