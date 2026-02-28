@@ -14,28 +14,45 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_LWIN, VK_RWIN,
 };
 
-// Virtual Key Constants
 const VK_TAB: u32 = 0x09;
-const VK_V: u32 = 0x56;
-const VK_SNAPSHOT: u32 = 0x2C;
 const VK_ESCAPE: u32 = 0x1B;
+const VK_SNAPSHOT: u32 = 0x2C;
+const VK_F11: u32 = 0x7A;
+const VK_F12: u32 = 0x7B;
+const VK_I: u32 = 0x49;
+const VK_J: u32 = 0x4A;
+const VK_L: u32 = 0x4C;
+const VK_N: u32 = 0x4E;
+const VK_T: u32 = 0x54;
+const VK_V: u32 = 0x56;
+const VK_W: u32 = 0x57;
 
 fn is_blocked_key(info: &KBDLLHOOKSTRUCT) -> bool {
     let vk = info.vkCode;
     let flags = info.flags.0;
     let alt = (flags & LLKHF_ALTDOWN.0) != 0;
+    let ctrl = || unsafe { GetAsyncKeyState(0x11) < 0 }; // VK_CONTROL
+    let shift = || unsafe { GetAsyncKeyState(0x10) < 0 }; // VK_SHIFT
     let win_held = || unsafe {
         GetAsyncKeyState(VK_LWIN.0 as i32) < 0
             || GetAsyncKeyState(VK_RWIN.0 as i32) < 0
     };
-    // Alt + Tab — window switcher
+
     if vk == VK_TAB && alt { return true; }
-    // Alt + Escape — old-style window cycle
     if vk == VK_ESCAPE && alt { return true; }
-    // Win + V — clipboard history
     if vk == VK_V && win_held() { return true; }
-    // Print Screen
     if vk == VK_SNAPSHOT { return true; }
+
+    // Browser tab/window shortcuts
+    if ctrl() {
+        match vk {
+            VK_T | VK_W | VK_N | VK_L => return true,
+            VK_I | VK_J if shift() => return true,
+            _ => {}
+        }
+    }
+    if vk == VK_F11 || vk == VK_F12 { return true; }
+
     false
 }
 
