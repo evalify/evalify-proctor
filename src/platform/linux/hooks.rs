@@ -35,7 +35,21 @@ const LXQT_SCREENSHOT_EXEC: &[&str] = &[
     "slurp",
 ];
 
-const OPENBOX_KEYS: &[&str] = &["A-Tab", "A-S-Tab", "A-ISO_Left_Tab"];
+const OPENBOX_KEYS: &[&str] = &[
+    "A-Tab",
+    "A-S-Tab",
+    "A-ISO_Left_Tab",
+    "C-t",
+    "C-w",
+    "C-n",
+    "C-S-t",
+    "C-S-n",
+    "C-l",
+    "C-S-i",
+    "C-S-j",
+    "F11",
+    "F12",
+];
 
 struct SavedFile {
     path: PathBuf,
