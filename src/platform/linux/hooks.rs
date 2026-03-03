@@ -7,6 +7,128 @@ use std::{
 };
 use anyhow::{Context, Result};
 
+// ── Desktop-user helpers (sudo-aware) ──────────────────────────────
+
+/// Return the *real* desktop user even when running under sudo.
+fn desktop_user() -> String {
+    env::var("SUDO_USER")
+        .unwrap_or_else(|_| env::var("USER").unwrap_or_else(|_| "root".into()))
+}
+
+/// Resolve a user's home directory from /etc/passwd.
+fn home_for(user: &str) -> Option<PathBuf> {
+    // Parse /etc/passwd – name:x:uid:gid:gecos:home:shell
+    let passwd = fs::read_to_string("/etc/passwd").ok()?;
+    for line in passwd.lines() {
+        let mut parts = line.split(':');
+        let name = parts.next()?;
+        if name == user {
+            let _pw = parts.next()?;
+            let _uid = parts.next()?;
+            let _gid = parts.next()?;
+            let _gecos = parts.next()?;
+            let home = parts.next()?;
+            return Some(PathBuf::from(home));
+        }
+    }
+    None
+}
+
+/// Return the desktop user's home, falling back to `HOME` env.
+fn desktop_home() -> Option<PathBuf> {
+    let user = desktop_user();
+    home_for(&user).or_else(|| env::var_os("HOME").map(PathBuf::from))
+}
+
+/// Run a command as the desktop user with the correct X11 environment.
+fn run_as_desktop_user(program: &str, args: &[&str]) -> Result<()> {
+    let user = desktop_user();
+    let home = home_for(&user)
+        .unwrap_or_else(|| env::var_os("HOME").map(PathBuf::from).unwrap_or_default());
+    let xauth = env::var("XAUTHORITY")
+        .unwrap_or_else(|_| home.join(".Xauthority").display().to_string());
+    let display = env::var("DISPLAY").unwrap_or_else(|_| ":0".into());
+
+    // If we are already the target user, just run directly.
+    let effective_uid = unsafe { libc::geteuid() };
+    let is_root = effective_uid == 0;
+    let same_user = !is_root || user == "root";
+
+    let out = if same_user {
+        Command::new(program)
+            .args(args)
+            .env("HOME", &home)
+            .env("DISPLAY", &display)
+            .env("XAUTHORITY", &xauth)
+            .output()
+            .with_context(|| format!("running {program}"))?
+    } else {
+        Command::new("sudo")
+            .args(["-u", &user])
+            .env("HOME", &home)
+            .env("DISPLAY", &display)
+            .env("XAUTHORITY", &xauth)
+            .arg(program)
+            .args(args)
+            .output()
+            .with_context(|| format!("running {program} as {user}"))?
+    };
+
+    if !out.status.success() {
+        anyhow::bail!(
+            "{} failed.\nstdout:\n{}\nstderr:\n{}",
+            program,
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    Ok(())
+}
+
+/// Run a command as the desktop user, returning stdout on success.
+fn run_as_desktop_user_output(program: &str, args: &[&str]) -> Result<String> {
+    let user = desktop_user();
+    let home = home_for(&user)
+        .unwrap_or_else(|| env::var_os("HOME").map(PathBuf::from).unwrap_or_default());
+    let xauth = env::var("XAUTHORITY")
+        .unwrap_or_else(|_| home.join(".Xauthority").display().to_string());
+    let display = env::var("DISPLAY").unwrap_or_else(|_| ":0".into());
+
+    let effective_uid = unsafe { libc::geteuid() };
+    let is_root = effective_uid == 0;
+    let same_user = !is_root || user == "root";
+
+    let out = if same_user {
+        Command::new(program)
+            .args(args)
+            .env("HOME", &home)
+            .env("DISPLAY", &display)
+            .env("XAUTHORITY", &xauth)
+            .output()
+            .with_context(|| format!("running {program}"))?
+    } else {
+        Command::new("sudo")
+            .args(["-u", &user])
+            .env("HOME", &home)
+            .env("DISPLAY", &display)
+            .env("XAUTHORITY", &xauth)
+            .arg(program)
+            .args(args)
+            .output()
+            .with_context(|| format!("running {program} as {user}"))?
+    };
+
+    if !out.status.success() {
+        anyhow::bail!(
+            "{} failed.\nstdout:\n{}\nstderr:\n{}",
+            program,
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 const LXQT_SHORTCUT_TOKENS: &[&str] = &[
     "Print",
     "Shift%2BPrint",
@@ -101,8 +223,8 @@ impl HookManager {
     // ── LXQt global shortcuts ──────────────────────────────────────────
 
     fn lxqt_config_path() -> Option<PathBuf> {
-        env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join(".config/lxqt/globalkeyshortcuts.conf"))
+        desktop_home()
+            .map(|h| h.join(".config/lxqt/globalkeyshortcuts.conf"))
     }
 
     fn disable_lxqt_shortcuts(&self) -> Result<()> {
@@ -229,17 +351,15 @@ impl HookManager {
     }
 
     fn reload_lxqt_globalkeys() {
-        let _ = Command::new("pkill")
-            .args(["-HUP", "lxqt-globalkeysd"])
-            .output();
+        let _ = run_as_desktop_user("pkill", &["-HUP", "lxqt-globalkeysd"]);
     }
 
     // ── Openbox keybinds ───────────────────────────────────────────────
 
     fn openbox_rc_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
-        if let Some(home) = env::var_os("HOME") {
-            let base = PathBuf::from(home).join(".config/openbox");
+        if let Some(home) = desktop_home() {
+            let base = home.join(".config/openbox");
             paths.push(base.join("lxqt-rc.xml"));
             paths.push(base.join("rc.xml"));
         }
@@ -345,18 +465,16 @@ impl HookManager {
     }
 
     fn reload_openbox() {
-        let _ = Command::new("openbox").arg("--reconfigure").output();
+        let _ = run_as_desktop_user("openbox", &["--reconfigure"]);
     }
 
     // ── X11 Print key ──────────────────────────────────────────────────
 
     fn disable_print_key(&self) {
-        let output = match Command::new("xmodmap").args(["-pke"]).output() {
-            Ok(o) if o.status.success() => o,
-            _ => return,
+        let text = match run_as_desktop_user_output("xmodmap", &["-pke"]) {
+            Ok(t) => t,
+            Err(_) => return,
         };
-
-        let text = String::from_utf8_lossy(&output.stdout);
 
         // Find the keycode that maps to Print keysym (typically 107, but not guaranteed)
         let print_line = text.lines().find(|l| {
@@ -370,27 +488,27 @@ impl HookManager {
         *self.print_key_mapping.lock().unwrap() = Some(line.to_string());
 
         if let Some(keycode) = line.split_whitespace().nth(1) {
-            let _ = Command::new("xmodmap")
-                .args(["-e", &format!("keycode {keycode} =")])
-                .output();
+            let _ = run_as_desktop_user(
+                "xmodmap",
+                &["-e", &format!("keycode {keycode} =")],
+            );
         }
     }
 
     fn restore_print_key(&self) {
         if let Some(line) = self.print_key_mapping.lock().unwrap().as_ref() {
-            let _ = Command::new("xmodmap").args(["-e", line]).output();
+            let _ = run_as_desktop_user("xmodmap", &["-e", line]);
         }
     }
 
     // ── Right click ────────────────────────────────────────────────────
 
     fn disable_right_click(&self) {
-        let output = match Command::new("xmodmap").args(["-pp"]).output() {
-            Ok(o) if o.status.success() => o,
-            _ => return,
+        let text = match run_as_desktop_user_output("xmodmap", &["-pp"]) {
+            Ok(t) => t,
+            Err(_) => return,
         };
 
-        let text = String::from_utf8_lossy(&output.stdout);
         let count = text
             .lines()
             .find(|l| l.contains("pointer buttons defined"))
@@ -403,9 +521,10 @@ impl HookManager {
                 .map(|i| if i == 3 { "0".to_string() } else { i.to_string() })
                 .collect::<Vec<_>>()
                 .join(" ");
-            let _ = Command::new("xmodmap")
-                .args(["-e", &format!("pointer = {map}")])
-                .output();
+            let _ = run_as_desktop_user(
+                "xmodmap",
+                &["-e", &format!("pointer = {map}")],
+            );
         }
     }
 
@@ -415,9 +534,10 @@ impl HookManager {
                 .map(|i| i.to_string())
                 .collect::<Vec<_>>()
                 .join(" ");
-            let _ = Command::new("xmodmap")
-                .args(["-e", &format!("pointer = {map}")])
-                .output();
+            let _ = run_as_desktop_user(
+                "xmodmap",
+                &["-e", &format!("pointer = {map}")],
+            );
         }
     }
 

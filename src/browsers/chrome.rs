@@ -24,7 +24,6 @@ pub fn get_flags(url: &str) -> Vec<String> {
         "--disable-pinch".to_string(),
         "--disable-smooth-scrolling".to_string(),
         "--overscroll-history-navigation=0".to_string(),
-        "--remote-debugging-port=0".to_string(),
         "--disable-features=Translate,TranslateUI,PrintPreview,Pay,AutofillServerCommunication".to_string(),
     ]
 }
