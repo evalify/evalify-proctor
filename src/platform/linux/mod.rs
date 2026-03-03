@@ -35,10 +35,23 @@ impl ProctorPlatform for LinuxPlatform {
         let proxy_url = format!("http://127.0.0.1:{}", crate::config::CONFIG.proxy_port);
         let flags = browser.get_flags(url, &proxy_url);
 
-        let child = Command::new(browser.path)
-            .args(flags)
-            .spawn()
-            .context("Failed to launch browser")?;
+        // Chrome refuses to run as root. If we're running under sudo,
+        // launch the browser as the original (non-root) user.
+        let child = if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+            println!("Running as root — launching browser as user '{}'", sudo_user);
+            Command::new("sudo")
+                .arg("-u")
+                .arg(&sudo_user)
+                .arg(&browser.path)
+                .args(&flags)
+                .spawn()
+                .context("Failed to launch browser as non-root user")?
+        } else {
+            Command::new(&browser.path)
+                .args(&flags)
+                .spawn()
+                .context("Failed to launch browser")?
+        };
 
         Ok(child)
     }
