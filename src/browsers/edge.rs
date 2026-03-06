@@ -8,6 +8,7 @@ pub fn get_flags(url: &str) -> Vec<String> {
         "--edge-kiosk-type=fullscreen".to_string(),
         "--no-first-run".to_string(),
         "--inprivate".to_string(),
+        "--ignore-certificate-errors".to_string(),
         "--disable-extensions".to_string(),
         "--disable-sync".to_string(),
         "--disable-print-preview".to_string(),

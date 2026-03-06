@@ -10,6 +10,7 @@ pub fn get_flags(url: &str) -> Vec<String> {
         "--fullscreen".to_string(),
         "--new-window".to_string(),
         "--no-first-run".to_string(),
+        "--ignore-certificate-errors".to_string(),
         format!("--user-data-dir={}", KIOSK_DATA_DIR),
         "--incognito".to_string(),
         "--disable-extensions".to_string(),
