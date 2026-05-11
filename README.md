@@ -115,7 +115,13 @@ Dangerous keyboard shortcuts and right-click are intercepted at the OS level.
 |----------|--------|
 | Alt+Tab | Window switcher |
 | Alt+Esc | Window cycle |
+| Alt+F4 / Alt+Space | Window close/menu escape routes |
+| Ctrl+Esc / Ctrl+Shift+Esc | Start menu / Task Manager |
+| Ctrl+Tab / Ctrl+PageUp / Ctrl+PageDown / Ctrl+1..9 | Browser tab switching |
+| Win key and Win+* shortcuts | Start, Task View, desktop switching, system panels |
 | Win+V | Clipboard history |
+| Precision touchpad 3/4-finger gestures | Task View, app switching, desktop switching |
+| Middle and side mouse buttons | New tabs, close tabs, browser back/forward |
 
 **Linux-only additional blocks:**
 
@@ -127,6 +133,7 @@ Dangerous keyboard shortcuts and right-click are intercepted at the OS level.
 | LXQt screenshot shortcuts | Disabled in `globalkeyshortcuts.conf` |
 
 All hooks are uninstalled and original settings restored on shutdown.
+On Windows, registry-backed lockdown settings are also written through a restore journal and watched by a small helper process so they are restored if the main kiosk process crashes. Touchpad gesture changes are applied to the Windows shell settings cache immediately; if that cache API is unavailable, startup fails instead of running with swipes still enabled.
 
 
 ### Key encryption utility

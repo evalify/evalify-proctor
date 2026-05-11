@@ -1,43 +1,48 @@
-use winreg::enums::HKEY_LOCAL_MACHINE;
-use winreg::RegKey;
 use anyhow::Result;
 
+use super::registry_restore::{self, RegistryDwordOverride, RegistryHive};
+
+const SCOPE: &str = "devtools-policy";
+const DEVTOOLS_AVAILABILITY: &str = "DeveloperToolsAvailability";
+const CHROME_POLICY_PATH: &str = r"SOFTWARE\Policies\Google\Chrome";
+const EDGE_POLICY_PATH: &str = r"SOFTWARE\Policies\Microsoft\Edge";
+
+const DEVTOOLS_OVERRIDES: &[RegistryDwordOverride] = &[
+    RegistryDwordOverride {
+        hive: RegistryHive::LocalMachine,
+        path: CHROME_POLICY_PATH,
+        name: DEVTOOLS_AVAILABILITY,
+        value: 2,
+    },
+    RegistryDwordOverride {
+        hive: RegistryHive::LocalMachine,
+        path: EDGE_POLICY_PATH,
+        name: DEVTOOLS_AVAILABILITY,
+        value: 2,
+    },
+];
+
 pub fn disable_devtools() -> Result<()> {
-    disable_chrome_devtools()?;
-    disable_edge_devtools()?;
+    for entry in DEVTOOLS_OVERRIDES {
+        registry_restore::set_dword(SCOPE, *entry)?;
+    }
     Ok(())
 }
 
 pub fn enable_devtools() -> Result<()> {
-    enable_chrome_devtools()?;
-    enable_edge_devtools()?;
+    registry_restore::restore_scope(SCOPE)?;
     Ok(())
 }
 
-fn disable_edge_devtools() -> Result<()> {
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let (key, _) = hklm.create_subkey("SOFTWARE\\Policies\\Microsoft\\Edge")?;
-    key.set_value("DeveloperToolsAvailability", &2u32)?;
-    Ok(())
-}
-
-fn disable_chrome_devtools() -> Result<()> {
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let (key, _) = hklm.create_subkey("SOFTWARE\\Policies\\Google\\Chrome")?;
-    key.set_value("DeveloperToolsAvailability", &2u32)?;
-    Ok(())
-}
-
-fn enable_edge_devtools() -> Result<()> {
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let (key, _) = hklm.create_subkey("SOFTWARE\\Policies\\Microsoft\\Edge")?;
-    key.set_value("DeveloperToolsAvailability", &0u32)?;
-    Ok(())
-}
-
-fn enable_chrome_devtools() -> Result<()> {
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-    let (key, _) = hklm.create_subkey("SOFTWARE\\Policies\\Google\\Chrome")?;
-    key.set_value("DeveloperToolsAvailability", &0u32)?;
+pub fn restore_legacy_lockdown_defaults() -> Result<()> {
+    for path in [CHROME_POLICY_PATH, EDGE_POLICY_PATH] {
+        registry_restore::set_dword_if_current(
+            RegistryHive::LocalMachine,
+            path,
+            DEVTOOLS_AVAILABILITY,
+            2,
+            0,
+        )?;
+    }
     Ok(())
 }

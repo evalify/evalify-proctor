@@ -1,8 +1,8 @@
-mod platform;
 mod browsers;
+mod platform;
 mod proxy;
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use platform::ProctorPlatform;
 
 #[cfg(target_os = "windows")]
@@ -18,6 +18,11 @@ mod config;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    #[cfg(target_os = "windows")]
+    if platform::windows::maybe_run_lockdown_guard()? {
+        return Ok(());
+    }
+
     use std::net::TcpListener;
 
     let target_url = &crate::config::CONFIG.target_url;
@@ -25,8 +30,10 @@ async fn main() -> Result<()> {
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], proxy_port));
     let listener = TcpListener::bind(addr).context("Failed to bind proxy port")?;
-    listener.set_nonblocking(true).context("Failed to set listener nonblocking")?;
-    
+    listener
+        .set_nonblocking(true)
+        .context("Failed to set listener nonblocking")?;
+
     let logout_signal = std::sync::Arc::new(tokio::sync::Notify::new());
     let proxy_shutdown = std::sync::Arc::new(tokio::sync::Notify::new());
     let logout_clone = logout_signal.clone();
@@ -50,7 +57,9 @@ async fn main() -> Result<()> {
     platform.setup().await?;
 
     println!("Launching Kiosk Browser: {}", target_url);
-    let _browser_child = platform.launch_kioski(target_url).await
+    let _browser_child = platform
+        .launch_kioski(target_url)
+        .await
         .context("Failed to launch browser")?;
 
     println!("Kiosk mode active. Press Ctrl+C to exit.");
